@@ -16,7 +16,8 @@
 #include "ssd1306_font.h"
 
 
-
+# define I2C_PORT i2c0
+# define DEVICE_ADDRESS 0x3C
 
 
 // Not currently used.
@@ -66,30 +67,33 @@ void SendCommandBuffer(uint8_t *inbuf, int len) {
     i2c_write_blocking(I2C_PORT, DEVICE_ADDRESS, inbuf, len, false);
 }
 
-void SSD1306_initialise() {
+void SSD1306_initialise(void)
+{
+    uint8_t init_cmds[] = {
+        0x00,
+        SSD1306_DISPLAYOFF,
+        SSD1306_SETDISPLAYCLOCKDIV, 0x80,
+        SSD1306_SETMULTIPLEX, 0x3F,
+        SSD1306_SETDISPLAYOFFSET, 0x00,
+        SSD1306_SETSTARTLINE,
+        SSD1306_CHARGEPUMP, 0x14,
+        SSD1306_MEMORYMODE, 0x00,
+        SSD1306_SEGREMAP127,
+        SSD1306_COMSCANDEC,
+        SSD1306_SETCOMPINS, 0x12,
+        SSD1306_SETCONTRAST, 0x7F,
+        SSD1306_SETPRECHARGE, 0xF1,
+        SSD1306_SETVCOMDETECT, 0x40,
+        SSD1306_DEACTIVATE_SCROLL,
+        SSD1306_DISPLAYALLON_RESUME,
+        SSD1306_NORMALDISPLAY,
+        SSD1306_COLUMNADDR, 0, SSD1306_LCDWIDTH - 1,
+        SSD1306_PAGEADDR, 0, 7
+    };
 
-uint8_t init_cmds[]=
-    {0x00,
-    SSD1306_DISPLAYOFF,
-    SSD1306_SETMULTIPLEX, 0x3f,
-    SSD1306_SETDISPLAYOFFSET, 0x00,
-    SSD1306_SETSTARTLINE,
-    SSD1306_SEGREMAP127,
-    SSD1306_COMSCANDEC,
-    SSD1306_SETCOMPINS, 0x12,
-    SSD1306_SETCONTRAST, 0xff,
-    SSD1306_DISPLAYALLON_RESUME,
-    SSD1306_NORMALDISPLAY,
-    SSD1306_SETDISPLAYCLOCKDIV, 0x80,
-    SSD1306_CHARGEPUMP, 0x14,
-    SSD1306_DISPLAYON,
-    SSD1306_MEMORYMODE, 0x00,   // 0 = horizontal, 1 = vertical, 2 = page
-    SSD1306_COLUMNADDR, 0, SSD1306_LCDWIDTH-1,  // Set the screen wrapping points
-    SSD1306_PAGEADDR, 0, 7};
-
-   
-    
-    SendCommandBuffer(init_cmds, sizeof(init_cmds));
+    SendCommandBuffer(init_cmds, sizeof init_cmds);
+    ClearDisplay();  // Your implementation also sends the blank framebuffer.
+    SendCommand(SSD1306_DISPLAYON);
 }
 
 void InvertDisplay(bool yes) {

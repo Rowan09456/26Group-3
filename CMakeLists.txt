@@ -44,6 +44,8 @@ target_link_libraries(group3 PRIVATE
 
 
 pico_add_extra_outputs(group3)
+pico_enable_stdio_usb(group3 1)
+pico_enable_stdio_uart(group3 0)
 
 
 

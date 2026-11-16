@@ -146,7 +146,7 @@ void read_registers(uint8_t reg, uint8_t *buf, uint16_t len) {
 void read_compensation_parameters() {
     uint8_t buffer[26];
 
-    read_registers(0x88, buffer, 24);
+    read_registers(0x88, buffer, 26);
 
     dig_T1 = buffer[0] | (buffer[1] << 8);
     dig_T2 = buffer[2] | (buffer[3] << 8);
@@ -164,13 +164,17 @@ void read_compensation_parameters() {
 
     dig_H1 = buffer[25];
 
-    read_registers(0xE1, buffer, 8);
+    read_registers(0xE1, buffer, 7);
 
-    dig_H2 = buffer[0] | (buffer[1] << 8);
-    dig_H3 = (int8_t) buffer[2];
-    dig_H4 = buffer[3] << 4 | (buffer[4] & 0xf);
-    dig_H5 = (buffer[5] >> 4) | (buffer[6] << 4);
-    dig_H6 = (int8_t) buffer[7];
+    dig_H2 = (int16_t)(buffer[0] | (buffer[1] << 8));
+    dig_H3 = buffer[2];
+
+    int16_t h4 = (buffer[3] << 4) | (buffer[4] & 0x0F);
+    int16_t h5 = (buffer[5] << 4) | (buffer[4] >> 4);
+
+    dig_H4 = (h4 >= 2048) ? h4 - 4096 : h4;
+    dig_H5 = (h5 >= 2048) ? h5 - 4096 : h5;
+    dig_H6 = (int8_t)buffer[6];
 }
 
 void bme280_read_raw(int32_t *humidity, int32_t *pressure, int32_t *temperature) {
@@ -182,64 +186,3 @@ void bme280_read_raw(int32_t *humidity, int32_t *pressure, int32_t *temperature)
     *humidity = (uint32_t) buffer[6] << 8 | buffer[7];
 }
 #endif
-/*
-int main() {
-    stdio_init_all();
-
-
-//#if (!defined(mySPI) || !defined(mySPI_SCK) || !defined(mySPI_TX) || !defined(mySPI_RX))
-//#warning spi/bme280_spi example requires a board with SPI pins
-//    puts("Default SPI pins were not defined");
-//#else
-
-    printf("Hello, bme280! Reading raw data from registers via SPI...\n");
-
-    // This example will use SPI0 at 0.5MHz.
-    spi_init(mySPI, 500 * 1000);
-    gpio_set_function(mySPI_RX, GPIO_FUNC_SPI);
-    gpio_set_function(mySPI_SCK, GPIO_FUNC_SPI);
-    gpio_set_function(mySPI_TX, GPIO_FUNC_SPI);
-
-    // Make the SPI pins available to picotool
-    bi_decl(bi_3pins_with_func(mySPI_RX, mySPI_TX, mySPI_SCK, GPIO_FUNC_SPI));
-
-    // Chip select is active-low, so we'll initialise it to a driven-high state
-    gpio_init(mySPI_CSN);
-    gpio_set_dir(mySPI_CSN, GPIO_OUT);
-    gpio_put(mySPI_CSN, 1);
-    // Make the CS pin available to picotool
-    bi_decl(bi_1pin_with_name(mySPI_CSN, "SPI CS"));
-
-    // See if SPI is working - interrograte the device for its I2C ID number, should be 0x60
-    uint8_t id;
-    read_registers(0xD0, &id, 1);
-    printf("Chip ID is 0x%x\n", id);
-    sleep_ms(5000);
-
-    read_compensation_parameters();
-
-    write_register(0xF2, 0x1); // Humidity oversampling register - going for x1
-    write_register(0xF4, 0x27);// Set rest of oversampling modes and run mode to normal
-
-    int32_t humidity, pressure, temperature;
-
-    while (1) {
-        bme280_read_raw(&humidity, &pressure, &temperature);
-
-        // These are the raw numbers from the chip, so we need to run through the
-        // compensations to get human understandable numbers
-        pressure = compensate_pressure(pressure);
-        temperature = compensate_temp(temperature);
-        humidity = compensate_humidity(humidity);
-
-        printf("Humidity = %.2f%%\n", humidity / 1024.0);
-        printf("Pressure = %dPa\n", pressure);
-        printf("Temp. = %.2fC\n", temperature / 100.0);
-
-        sleep_ms(1000);
-    }
-
-    return 0;
-//#endif
-}
-*/
