@@ -7,6 +7,10 @@
 #include "Ambient/ssd1306_i2c.h"
 #include "Ambient/bme280_spi.h"
 #include "Ambient/ambient.h"
+#include "Ultrasonic/ultrasonic.h"
+#include "Reporting/reporting.h"
+
+void screen_params_update(bool door_status, bool ambient_ok, bool user_present);
 
 int main(void)
 {
@@ -34,7 +38,6 @@ int main(void)
     // Wait for the BME280 before displaying measurements.
     uint8_t chip_id = 0;
     read_registers(0xD0, &chip_id, 1);
-    bool ambient_ok = ambient_passes();
 
     while (chip_id != 0x60) {
         ClearDisplay();
@@ -50,35 +53,72 @@ int main(void)
     write_register(0xF4, 0x27);  // Temperature and pressure x1, normal mode
     sleep_ms(100);
 
+    // Ultrasonic sensor
+    static uint32_t us_distance;
+    static uint32_t timer1, timer2;
+    const uint32_t us_period = 30; //Period for ultrasonic sensor needs to be at least 20ms or else it may have an error at the rated 2m range
+    stdio_init_all();
+    us_init();
+    us_distance = 0;
+    timer1 = timer_read();
+
+    bool door_status = true; // Placeholder for door status, replace with actual logic to determine door status
+    bool password_status = true; // Placeholder for password status, replace with actual logic to determine password status
+
+  
+    
+    
+
     while (true) {
-        int32_t raw_humidity = 0;
-        int32_t raw_pressure = 0;
-        int32_t raw_temperature = 0;
 
-        bme280_read_raw(&raw_humidity, &raw_pressure, &raw_temperature);
+        // bool ambient_ok = ambient_passes();
+        // ClearDisplay();
+        // if (ambient_ok) {
+        //     WriteString(10, 0, (uint8_t *)"Ambient: OK");
+        // } else {
+        //     WriteString(10, 0, (uint8_t *)"Ambient: NOK");
+        // }
+        // UpdateDisplay();
 
-        // Temperature compensation sets t_fine for the other two readings.
-        double temperature_c = compensate_temp(raw_temperature) / 100.0;
-        double pressure_kpa = compensate_pressure(raw_pressure) / 1000.0;
-        double humidity_pct = compensate_humidity(raw_humidity) / 1024.0;
+        timer2 = timer_read();
+        if(timer_elapsed_ms(timer1, timer2) >= us_period){
+            us_tick(&us_distance);
+            printf("Distance: %d cm\n", us_distance);
+            timer1 = timer2;
+        }
 
-        char hum[16];
-        char pres[16];
-        char temp[16];
-
-        snprintf(hum, sizeof hum, "%.1f %%", humidity_pct);
-        snprintf(pres, sizeof pres, "%.1f KPA", pressure_kpa);
-        snprintf(temp, sizeof temp, "%.1f C", temperature_c);
-
-        ClearDisplay();
-        WriteString(10,  0, (uint8_t *)"Humidity");
-        WriteString(10,  8, (uint8_t *)hum);
-        WriteString(10, 16, (uint8_t *)"Pressure");
-        WriteString(10, 24, (uint8_t *)pres);
-        WriteString(10, 32, (uint8_t *)"Temperature");
-        WriteString(10, 40, (uint8_t *)temp);
-        UpdateDisplay();
+        screen_params_update(door_status, ambient_passes(), user_present(us_distance));
+        report(door_status, ambient_passes(), password_status);
 
         sleep_ms(1000);
     }
 }
+
+void screen_params_update(bool door_status, bool ambient_ok, bool user_present) 
+    {
+        ClearDisplay();
+        if (ambient_ok) 
+        {
+            WriteString(10, 0, (uint8_t *)"Ambient: OK");
+        } else 
+        {
+            WriteString(10, 0, (uint8_t *)"Ambient: NOK");
+        }
+
+        if (door_status) 
+        {
+            WriteString(10, 20, (uint8_t *)"Door: Open");
+        } else 
+        {
+            WriteString(10, 20, (uint8_t *)"Door: Closed");
+        }
+
+        if (user_present) 
+        {
+            WriteString(10, 40, (uint8_t *)"User: Present");
+        } else 
+        {
+            WriteString(10, 40, (uint8_t *)"User: Not Present");
+        }
+        UpdateDisplay();
+    }

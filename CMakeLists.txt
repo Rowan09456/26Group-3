@@ -29,6 +29,9 @@ add_executable(group3 Main/main.c)
 target_sources(group3 PRIVATE 
     Drivers/Ambient/ssd1306_i2c.c
     Drivers/Ambient/bme280_spi.c
+    Drivers/Ultrasonic/timer.c
+    Drivers/Ultrasonic/ultrasonic.c
+    Drivers/Reporting/reporting.c
 )
 
 target_include_directories(group3 PRIVATE
@@ -40,6 +43,8 @@ target_link_libraries(group3 PRIVATE
     pico_cyw43_arch_none 
     hardware_i2c 
     hardware_spi
+    pico_cyw43_arch_lwip_threadsafe_background
+    pico_lwip_http
 )
 
 
