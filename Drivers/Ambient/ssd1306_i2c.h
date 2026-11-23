@@ -14,7 +14,7 @@
 // By default these devices are on bus address 0x3C or 0x3D. Check your documentation.
 #define SSD1306_I2C_ADDRESS 0x3C
 
-#define I2C_PORT i2c1
+#define I2C_PORT i2c0
 #define I2C_SDA_PIN 6
 #define I2C_SCL_PIN 7
 

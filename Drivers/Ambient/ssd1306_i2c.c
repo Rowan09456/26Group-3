@@ -9,14 +9,12 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include "pico/stdlib.h"
-#include "pico/cyw43_arch.h"
+// #include "pico/cyw43_arch.h"
 
 #include "hardware/i2c.h"
 #include "ssd1306_i2c.h"
 #include "ssd1306_font.h"
 
-
-# define I2C_PORT i2c0
 # define DEVICE_ADDRESS 0x3C
 
 

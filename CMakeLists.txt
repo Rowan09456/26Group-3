@@ -24,27 +24,35 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 pico_sdk_init()
 
-add_executable(group3 Main/main.c)
+add_executable(group3
+ Main/main.c
+ AsyncHttpClient.cpp
+ )
 
 target_sources(group3 PRIVATE 
     Drivers/Ambient/ssd1306_i2c.c
     Drivers/Ambient/bme280_spi.c
     Drivers/Ultrasonic/timer.c
     Drivers/Ultrasonic/ultrasonic.c
-    Drivers/Reporting/reporting.c
+    Drivers/Servo/servo.c
+    Drivers/Keypad/keypad.c
 )
 
 target_include_directories(group3 PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"    
     "${CMAKE_CURRENT_SOURCE_DIR}/Drivers"
 )
 
 target_link_libraries(group3 PRIVATE 
     pico_stdlib 
-    pico_cyw43_arch_none 
     hardware_i2c 
     hardware_spi
     pico_cyw43_arch_lwip_threadsafe_background
     pico_lwip_http
+    pico_mbedtls
+    pico_lwip_mbedtls
+    hardware_pwm
+    hardware_clocks
 )
 
 
