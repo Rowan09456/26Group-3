@@ -19,56 +19,9 @@ class LogReadings(Resource):
             return{ "Logged @" : now.strftime("%m/%d/%Y, %H:%M:%S")}
         
 
-api.add_resource(
-    LogReadings, 
-    "/log/<string:StationID>/<float(signed=True):Sensor1>"
-    "/<float:Sensor2>/<float:Sensor3>/<int:Verbose>"
-    )
-
-@app.route("/")
-def home():
-    try:
-        with open("IoT_Data.txt", "r") as file:
-            lines = [line for line in file if line.strip()]
-
-        if not lines:
-            return '<meta http-equiv="refresh" content="2">Waiting for Pico reports.'
-
-        station, timestamp, door, ambient, password = (
-            lines[-1].strip().split("\t")
-        )
-
-        door_text = "CLOSED" if float(door) == 1 else "OPEN"
-        ambient_text = "OK" if float(ambient) == 1 else "NOK"
-        password_text = "OK" if float(password) == 1 else "NOK"
-
-        return f"""
-        <html>
-        <head>
-            <title>Security System</title>
-            <meta http-equiv="refresh" content="2">
-        </head>
-        <body>
-            <h1>Group 3 Security System</h1>
-            <p>Door: {door_text}</p>
-            <p>Ambient: {ambient_text}</p>
-            <p>Password: {password_text}</p>
-            <p>Last report: {timestamp}</p>
-        </body>
-        </html>
-        """
-
-    except FileNotFoundError:
-        return '<meta http-equiv="refresh" content="2">Waiting for Pico reports.'
-    except ValueError:
-        return "The latest log entry has an unexpected format."
+api.add_resource(LogReadings, "/log/<string:StationID>/<float:Sensor1>/<float:Sensor2>/<float:Sensor3>/<int:Verbose>")
 
 if __name__ == "__main__":
 
-    app.run(
-        host="0.0.0.0", 
-        port="8443", 
-        debug=False,
-        ssl_context=('server.crt', 'server.key')
-        )
+    app.run(host="127.0.0.1", port="80", debug=True)
 

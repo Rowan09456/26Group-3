@@ -17,24 +17,30 @@
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
+#include "drivers.h"
+#include <string.h>
+#include "pico/rand.h"
 
-void screen_params_update(bool door_status, bool ambient_ok, bool user_present);
+const char *generate_password(void)
+{
+    static char password[7];
+    static const char characters[] = "ABCD0123456789*#";
+
+    for (unsigned int i = 0; i < 6; i++) {
+        password[i] = characters[get_rand_32() & 0x0F];
+    }
+
+    password[6] = '\0';
+    return password;
+}
+
 
 int main(void)
 {
     stdio_init_all();
     sleep_ms(2000);
 
-    servo_init(); // Initialize the servo motor
-
-    printf("Servo opening\n");
-    servo_open();
-    sleep_ms(2000);
-
-    printf("Servo closing\n");
-    servo_close();
-    sleep_ms(2000);
-
+    
     // if (cyw43_arch_init() != 0) {
     //     printf("Wi-Fi initialization failed\n");
     //     return 1;
@@ -58,19 +64,19 @@ int main(void)
 
     // printf("Wi-Fi connected\n");
 
-    //OLED: I2C0 on GP4 (SDA) and GP5 (SCL).
+    // OLED initialization: I2C0 on GP4 (SDA) and GP5 (SCL).
     i2c_init(i2c0, 100000);
     gpio_set_function(4, GPIO_FUNC_I2C);
     gpio_set_function(5, GPIO_FUNC_I2C);
     gpio_pull_up(4);
     gpio_pull_up(5);
     sleep_ms(100);
-    printf("I2C0 initialized for SSD1306 OLED display.\n");
 
-    SSD1306_initialise();
 
-    //BME280: use the SPI bus and pins defined in bme280_spi.h.
+    //printf("I2C0 initialized for SSD1306 OLED display.\n");
+    // BME280 Initialization: Use the SPI bus and pins defined in bme280_spi.h    
     gpio_init(mySPI_CSN);
+    SSD1306_initialise();
     gpio_put(mySPI_CSN, 1);
     gpio_set_dir(mySPI_CSN, GPIO_OUT);
     printf("SPI initialized for BME280 sensor.\n");
@@ -84,8 +90,6 @@ int main(void)
     // Wait for the BME280 before displaying measurements.
     uint8_t chip_id = 0;
     read_registers(0xD0, &chip_id, 1);
-
-
     while (chip_id != 0x60) {
         ClearDisplay();
         WriteString(10, 0, (uint8_t *)"BME280 ERROR");
@@ -93,16 +97,14 @@ int main(void)
         sleep_ms(1000);
         read_registers(0xD0, &chip_id, 1);
     }
-
-    printf("BME280 detected, chip ID: 0x%02X\n", chip_id);
-
+    //printf("BME280 detected, chip ID: 0x%02X\n", chip_id);
     write_register(0xF4, 0x00);  // Sleep while configuring
     read_compensation_parameters();
     write_register(0xF2, 0x01);  // Humidity oversampling x1
     write_register(0xF4, 0x27);  // Temperature and pressure x1, normal mode
     sleep_ms(100);
 
-    // Ultrasonic sensor
+    // Ultrasonic sensor initialization
     static uint32_t us_distance;
     static uint32_t timer1, timer2;
     const uint32_t us_period = 30; //Period for ultrasonic sensor needs to be at least 20ms or else it may have an error at the rated 2m range
@@ -110,124 +112,156 @@ int main(void)
     us_init();
     us_distance = 0;
     timer1 = timer_read();
+    bool user_pres = 0;
+    uint32_t door_open_time = 0;
 
+    // Servo initialization
+    servo_init(); // Initialize the servo motor
     bool door_status = false; // Placeholder for door status, replace with actual logic to determine door status
-    bool password_status = true; // Placeholder for password status, replace with actual logic to determine password status
 
-    keypad_init(); // Initialize the keypad
+    // Keypad initialization
+    keypad_init(); 
     unsigned char previous_key = KEYPAD_NO_KEY;
+    char password_entered[7] = {0}; // Buffer to store entered password
+    char password_correct[] = {'1', '2', '3', '4', '5', '6'};
+    unsigned int password_index = 0;
+    uint password_uses = 0;
+    bool password_status = false; // Password status boolean to track if the password is correct
+    bool entering_password = false;
+    uint32_t door_opened_at = 0;
+    unsigned char key = '0';
 
+    // Real time clock initalization
     ds3231_init(i2c0);
+    bool ambient_ok = true;
+    int i = 0;
     
-    while (true) {
 
-        bool ambient_ok = ambient_passes();
-        ClearDisplay();
-        if (ambient_ok) {
-            WriteString(10, 0, (uint8_t *)"Ambient: OK");
-        } else {
-            WriteString(10, 0, (uint8_t *)"Ambient: NOK");
-        }
-        UpdateDisplay();
-
+    // MAIN LOOP
+    while (true) 
+    {
+        // Get the current distance from the ultrasonic sensor
         timer2 = timer_read();
-        if(timer_elapsed_ms(timer1, timer2) >= us_period){
+        if(timer_elapsed_ms(timer1, timer2) >= us_period)
+        {
             us_tick(&us_distance);
             //printf("Distance: %d cm\n", us_distance);
             timer1 = timer2;
         }
-        //printf("Distance: %d cm\n", us_distance);
-        screen_params_update(
-        door_status,
-        ambient_ok,
-        user_present(us_distance)
-        );
+        user_pres = user_present(us_distance);
+        sleep_ms(50);
 
-        //printf("Reporting: door_closed=%d ambient_ok=%d password_ok=%d\n", !door_status, ambient_ok, password_status);
+        ambient_ok = ambient_passes();
 
-        //report_status(!door_status, ambient_ok, password_status);
+        screen_params_update(door_status, ambient_ok, user_pres);
+        // Always scan so key releases are detected.
+        key = get_keypad_pressedKey(1);
 
-        // Check the through beam sensor
-        // if (through_beam_blocked()) 
-        // {
-        //     printf("Through beam sensor is blocked.\n");
-        // }
-        // else
-        // {
-        //     printf("Through beam sensor is clear.\n");
-        // }
+        if (ambient_ok && user_pres)
+        {
+            int i = 0;
+            previous_key = KEYPAD_NO_KEY;
 
-        // if(door_status)
-        // {
-        //     servo_close();
-        // }
-        // else
-        // {
-        //     servo_open();
-        // }
-        // door_status = !door_status; // Toggle door status for demonstration purposes
+            printf("Password: ");
+            fflush(stdout);
 
+            while (i < 6)
+            {
+                key = get_keypad_pressedKey(1);
 
+                if (key != KEYPAD_NO_KEY &&
+                    previous_key == KEYPAD_NO_KEY)
+                {
+                    password_entered[i++] = (char)key;
 
+                    printf("%c", (int)key);
+                    fflush(stdout);
+                }
 
+                previous_key = key;
+                sleep_ms(10);
 
-    
+                uint32_t distance = us_getdistance();
 
-        unsigned char key = get_keypad_pressedKey(1);
+                if (distance != NO_CAPTURE_READY) {
+                    us_distance = distance;
+                }
 
-        // Print once per press.
-        if (key != KEYPAD_NO_KEY && key != previous_key) {
-            printf("Pressed: %c\r\n", key);
+                ambient_ok = ambient_passes();
+                user_pres = user_present(us_distance);
 
-            if (key == '1') {
-                // Action for key 1.
+                screen_params_update(door_status, ambient_ok, user_pres);
+
+                if (!ambient_ok || !user_pres) {
+                    printf("\r\nEntry cancelled\r\n");
+                    break;
+                }
+            }
+
+            password_entered[6] = '\0';
+            printf("\r\n");
+
+            password_status =
+                strcmp(password_entered, password_correct) == 0;
+
+            if (password_status)
+            {
+                printf("Password correct\r\n");
+
+                servo_open();
+                door_status = true;
+                password_uses++;
+
+                screen_params_update(
+                    door_status, ambient_ok, user_pres);
+
+                sleep_ms(DOOR_HOLD_MS);
+
+                servo_close();
+                door_status = false;
+
+                screen_params_update(
+                    door_status, ambient_ok, user_pres);
+            }
+            else
+            {
+                printf("Incorrect password entered.\r\n");
             }
         }
 
         previous_key = key;
-        sleep_ms(10);
+        // Close the door when its hold time expires.
+        if (door_status && (uint32_t)(time_us_32() - door_opened_at) >= (uint32_t)DOOR_HOLD_MS * 1000u)
+        {
+            servo_close();
+            door_status = false;
+
+            screen_params_update(
+                door_status, ambient_ok, user_pres);
+        }
+
+        if(password_uses >= 5)
+        {
+            strcpy(password_correct, generate_password());
+            password_uses = 0;
+            printf("Password: %s\r\n", password_correct);
+        }
+        sleep_ms(1000);
+        
+
+        //report_status(!door_status, ambient_ok, password_status);
+
         ds3231_dateTime now;
 
-        if (ds3231_read_time(&now)) {
-            printf("%02u:%02u:%02u\r\n",
-                (unsigned)now.hour,
-                (unsigned)now.min,
-                (unsigned)now.sec);
-        } else {
-            printf("RTC read failed\r\n");
-        }
+        // if (ds3231_read_time(&now)) {
+        //     printf("%02u:%02u:%02u\r\n",
+        //         (unsigned)now.hour,
+        //         (unsigned)now.min,
+        //         (unsigned)now.sec);
+        // } else {
+        //     printf("RTC read failed\r\n");
+        // }
 
         //sleep_ms(1000);
     }
 }
-
-
-void screen_params_update(bool door_status, bool ambient_ok, bool user_present) 
-    {
-        ClearDisplay();
-        if (ambient_ok) 
-        {
-            WriteString(10, 0, (uint8_t *)"Ambient: OK");
-        } else 
-        {
-            WriteString(10, 0, (uint8_t *)"Ambient: NOK");
-        }
-
-        if (door_status) 
-        {
-            WriteString(10, 20, (uint8_t *)"Door: Open");
-        } else 
-        {
-            WriteString(10, 20, (uint8_t *)"Door: Closed");
-        }
-
-        if (user_present) 
-        {
-            WriteString(10, 40, (uint8_t *)"User: Present");
-        } else 
-        {
-            WriteString(10, 40, (uint8_t *)"User: Not Present");
-        }
-        UpdateDisplay();
-    }
-

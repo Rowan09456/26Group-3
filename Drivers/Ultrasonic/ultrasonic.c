@@ -160,5 +160,5 @@ bool user_present(uint32_t distance_cm)
 {
     return distance_cm != NO_CAPTURE_READY &&
            distance_cm > 0 &&
-           distance_cm < 100;
+           distance_cm < 20;
 }

@@ -36,6 +36,7 @@ target_sources(group3 PRIVATE
     Drivers/Ultrasonic/ultrasonic.c
     Drivers/Servo/servo.c
     Drivers/Keypad/keypad.c
+    Drivers/drivers.c
 )
 
 target_include_directories(group3 PRIVATE
@@ -53,6 +54,7 @@ target_link_libraries(group3 PRIVATE
     pico_lwip_mbedtls
     hardware_pwm
     hardware_clocks
+    pico_rand
 )
 
 
